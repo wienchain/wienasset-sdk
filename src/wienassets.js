@@ -287,6 +287,32 @@ WienAsset.prototype.buildSendAssetTX = function (args, callback) {
   callback)
 }
 
+WienAsset.prototype.signRawTX = function (args, callback) {
+  try {
+    var tx = bitcoin.Transaction.fromHex(args.unsignedTX)
+    var txb = bitcoin.TransactionBuilder.fromTransaction(tx)
+    var insLength = tx.ins.length
+    for (var i = 0; i < insLength; i++) {
+      txb.inputs[i].scriptType = null
+      if (Array.isArray(args.privateKey)) {
+        for (var j = 0; j < args.privateKey.length; j++) {
+          const privateKey = new bitcoin.ECKey.fromWIF(args.privateKey[j]);
+          txb.sign(i, privateKey)
+        }
+      } else {
+        const privateKey = new bitcoin.ECKey.fromWIF(args.privateKey);
+        txb.sign(i, privateKey)
+      }
+    }
+    tx = txb.build()
+    
+    const signedTX = tx.toHex();
+    return callback(null, {signedTX: signedTX});
+  } catch (e) {
+    return callback(e)
+  }
+}
+
 WienAsset.prototype.sendAsset = function (args, callback) {
   var self = this
   var transmit = args.transmit !== false
