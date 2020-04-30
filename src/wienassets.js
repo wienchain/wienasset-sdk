@@ -131,7 +131,7 @@ WienAsset.prototype.buildTransaction = function (type, ccArgs, callback) {
     } catch (err) {
       return callback(err)
     }
-    tx.sha1 = ccArgs.sha1
+    tx.ipfsHash = ccArgs.ipfsHash
     return callback(null, tx)
   })
 }
@@ -206,6 +206,61 @@ WienAsset.prototype.issueAsset = function (args, callback) {
       res.assetId = assetInformation.assetId
       res.txHex = assetInformation.txHex
       cb(null, res)
+    }
+  ],
+  callback)
+}
+
+WienAsset.prototype.buildIssueAssetTX = function (args, callback) {
+  var self = this
+
+  args.transfer = args.transfer || []
+  if (!args.issueAddress) {
+    return callback(new Error('Must have "issueAddress"'))
+  }
+
+  var assetInformation
+
+  async.waterfall([
+    function (cb) {
+      self._getUtxosForAddresses([args.issueAddress], function(err, utxos) {
+        if (err) {
+          return cb(err)
+        } else {
+          args.utxos = utxos
+          return cb()
+        }
+      })
+    },
+    function (cb) {
+      self.buildTransaction('issue', args, cb)
+    },
+    function (assetInfo, cb) {
+      if (typeof assetInfo === 'function') return assetInfo('wrong server response')
+      if (!assetInfo || !assetInfo.txHex) return cb('wrong server response')
+      if (!args.privateKey) {
+        return cb(null, {unsignedTX: assetInfo.txHex, assetId: assetInfo.assetId, ipfsHash: assetInfo.ipfsHash});
+      }
+      // Unsigned Transaction
+      var tx = bitcoin.Transaction.fromHex(assetInfo.txHex)
+      var txb = bitcoin.TransactionBuilder.fromTransaction(tx)
+      var insLength = tx.ins.length
+      for (var i = 0; i < insLength; i++) {
+        txb.inputs[i].scriptType = null
+        if (Array.isArray(args.privateKey)) {
+          for (var j = 0; j < args.privateKey.length; j++) {
+            const privateKey = new bitcoin.ECKey.fromWIF(args.privateKey[j]);
+            txb.sign(i, privateKey)
+          }
+        } else {
+          const privateKey = new bitcoin.ECKey.fromWIF(args.privateKey);
+          txb.sign(i, privateKey)
+        }
+      }
+      tx = txb.build()
+      
+      const signedTX = tx.toHex();
+      return cb(null, {signedTX: signedTX, assetInfo: assetInfo});
     }
   ],
   callback)
