@@ -535,16 +535,7 @@ WienAsset.prototype.burnAsset = function (args, callback) {
       self.buildTransaction('burn', args, cb)
     },
     function (assetInfo, cb) {
-      if (!transmit) {
-        return self.sign(assetInfo.txHex, cb)
-      }
-      self.signAndTransmit(assetInfo, cb)
-    },
-    function (res, cb) {
-      if (!transmit) {
-        return cb(null, {signedTxHex: res})
-      }
-      cb(null, res)
+      cb(null, {unsignedTxHex: assetInfo.txHex})
     }
   ],
   callback)
