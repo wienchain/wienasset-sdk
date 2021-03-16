@@ -1017,7 +1017,7 @@ WienAsset.prototype.buildSendAssetTXNew = function (args, callback) {
   callback)
 }
 
-WienAsset.prototype._getTransactionUtxos = function (addresses, callback) {
-  this.chainAdapter.getTransactionUtxos(addresses, callback)
+WienAsset.prototype._getTransactionUtxos = function (address, assetId, callback) {
+  this.chainAdapter.getTransactionUtxos(address, assetId, callback)
 }
 module.exports = WienAsset
