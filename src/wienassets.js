@@ -941,4 +941,83 @@ WienAsset.prototype.verifyIssuer = function (assetId, json, cb) {
   })
 }
 
+WienAsset.prototype.buildSendAssetTXNew = function (args, callback) {
+  var self = this
+  var transmit = args.transmit !== false
+  async.waterfall([
+    function (cb) {
+      if (args.from && Array.isArray(args.from) && args.from.length) {
+        self._getTransactionUtxos(args.from[0], args.to[0].assetId, function(err, utxos) {
+          if (err) {
+            return cb(err)
+          } else {
+            delete args.from
+            args.utxos = utxos
+            return cb()
+          }
+        })
+      } else if (args.sendutxo && Array.isArray(args.sendutxo) && args.sendutxo.length) {
+        var objectUtxos = args.sendutxo.filter(utxo => typeof utxo === 'object')
+        if (objectUtxos.length === args.sendutxo.length) {
+          // 'sendutxo' is given as a UTXO object array, no need to fetch by txid:index
+          args.utxos = args.sendutxo
+          delete args.sendutxo
+          return cb()
+        }
+        var stringUtxos = args.sendutxo.filter(utxo => typeof utxo === 'string')
+        debug('stringUtxos', stringUtxos)
+        var txidsIndexes = stringUtxos.map(utxo => {
+          var utxoParts = utxo.split(':')
+          return {
+            txid: utxoParts[0],
+            index: utxoParts[1]
+          }
+        })
+        debug('txidsIndexes', txidsIndexes)
+        self.chainAdapter.getUtxos(txidsIndexes, function (err, populatedObjectUtxos) {
+          if (err) return cb(err)
+          debug('populatedObjectUtxos', populatedObjectUtxos)
+          args.utxos = objectUtxos.concat(populatedObjectUtxos)
+          delete args.sendutxo
+          return cb()
+        })
+      } else {
+        return cb('Must have "from" as array of addresses or "sendutxo" as array of utxos.')
+      }
+    },
+    function (cb) {
+      self.buildTransaction('send', args, cb)
+    },
+    function (assetInfo, cb) {
+      if (!args.privateKey) {
+        return cb(null, {unsignedTX: assetInfo.txHex});
+      }
+      // Unsigned Transaction
+      var tx = bitcoin.Transaction.fromHex(assetInfo.txHex)
+      var txb = bitcoin.TransactionBuilder.fromTransaction(tx)
+      var insLength = tx.ins.length
+      for (var i = 0; i < insLength; i++) {
+        txb.inputs[i].scriptType = null
+        if (Array.isArray(args.privateKey)) {
+          for (var j = 0; j < args.privateKey.length; j++) {
+            const privateKey = new bitcoin.ECKey.fromWIF(args.privateKey[j]);
+            txb.sign(i, privateKey)
+          }
+        } else {
+          const privateKey = new bitcoin.ECKey.fromWIF(args.privateKey);
+          txb.sign(i, privateKey)
+        }
+      }
+      tx = txb.build()
+      
+      const signedTX = tx.toHex();
+      return cb(null, {signedTX: signedTX});
+    }
+  ],
+  callback)
+}
+
+WienAsset.prototype._getTransactionUtxos = function (addresses, callback) {
+  this.chainAdapter.getTransactionUtxos(addresses, callback)
+}
 module.exports = WienAsset
