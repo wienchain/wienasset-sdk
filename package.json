@@ -21,7 +21,7 @@
   "author": "oleiba",
   "license": "Apache-2.0",
   "dependencies": {
-    "async": "^2.1.4",
+    "async": "^2.6.4",
     "bignumber.js": "^4.0.0",
     "blockexplorer-rpc": "^0.0.4",
     "clone": "^2.1.2",
